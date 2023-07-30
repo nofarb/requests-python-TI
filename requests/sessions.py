@@ -578,6 +578,14 @@ class Session(SessionRedirectMixin):
 
         proxies = proxies or {}
 
+        # Update self.proxy with proxy and assing the result to proxies
+        if isinstance(proxies,dict):
+            slef_proxies_tmp = self.proxies.copy()
+            slef_proxies_tmp.update(proxies)
+            proxies = slef_proxies_tmp.copy()
+        else:
+            proxies = self.proxies.copy()
+
         settings = self.merge_environment_settings(
             prep.url, proxies, stream, verify, cert
         )
@@ -773,8 +781,17 @@ class Session(SessionRedirectMixin):
                     or verify
                 )
 
+        # Check for no_proxy and no since they could be loaded from environment
+        no_proxy = proxies.get('no_proxy') if proxies is not None else None
+        no = proxies.get('no') if proxies is not None else None
+        if any([no_proxy, no]):
+            no_proxy = ','.join(filter(None, (no_proxy, no)))
+
         # Merge all the kwargs.
-        proxies = merge_setting(proxies, self.proxies)
+        if should_bypass_proxies(url, no_proxy):
+            proxies = {}
+        else:
+            proxies = merge_setting(proxies, self.proxies)
         stream = merge_setting(stream, self.stream)
         verify = merge_setting(verify, self.verify)
         cert = merge_setting(cert, self.cert)
