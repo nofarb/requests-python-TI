@@ -25,6 +25,7 @@ from requests.compat import (
     builtin_str,
     cookielib,
     getproxies,
+    is_urllib3_1,
     urlparse,
 )
 from requests.cookies import cookiejar_from_dict, morsel_to_cookie
@@ -1003,7 +1004,7 @@ class TestRequests:
                 "SubjectAltNameWarning",
             )
 
-        with pytest.warns(None) as warning_records:
+        with pytest.warns() as warning_records:
             warnings.simplefilter("always")
             requests.get(f"https://localhost:{port}/", verify=ca_bundle)
 
@@ -1805,23 +1806,6 @@ class TestRequests:
     def test_autoset_header_values_are_native(self, httpbin):
         data = "this is a string"
         length = "16"
-        req = requests.Request("POST", httpbin("post"), data=data)
-        p = req.prepare()
-
-        assert p.headers["Content-Length"] == length
-
-    def test_content_length_for_bytes_data(self, httpbin):
-        data = "This is a string containing multi-byte UTF-8 ☃️"
-        encoded_data = data.encode("utf-8")
-        length = str(len(encoded_data))
-        req = requests.Request("POST", httpbin("post"), data=encoded_data)
-        p = req.prepare()
-
-        assert p.headers["Content-Length"] == length
-
-    def test_content_length_for_string_data_counts_bytes(self, httpbin):
-        data = "This is a string containing multi-byte UTF-8 ☃️"
-        length = str(len(data.encode("utf-8")))
         req = requests.Request("POST", httpbin("post"), data=data)
         p = req.prepare()
 
@@ -2721,7 +2705,7 @@ class TestPreparingURLs:
         with pytest.raises(requests.exceptions.InvalidURL):
             r.prepare()
 
-    @pytest.mark.parametrize("url, exception", (("http://localhost:-1", InvalidURL),))
+    @pytest.mark.parametrize("url, exception", (("http://:1", InvalidURL),))
     def test_redirecting_to_bad_url(self, httpbin, url, exception):
         with pytest.raises(exception):
             requests.get(httpbin("redirect-to"), params={"url": url})
@@ -2964,6 +2948,29 @@ class TestPreparingURLs:
             close_server.set()
 
         assert client_cert is not None
+
+
+def test_content_length_for_bytes_data(httpbin):
+    data = "This is a string containing multi-byte UTF-8 ☃️"
+    encoded_data = data.encode("utf-8")
+    length = str(len(encoded_data))
+    req = requests.Request("POST", httpbin("post"), data=encoded_data)
+    p = req.prepare()
+
+    assert p.headers["Content-Length"] == length
+
+
+@pytest.mark.skipif(
+    is_urllib3_1,
+    reason="urllib3 2.x encodes all strings to utf-8, urllib3 1.x uses latin-1",
+)
+def test_content_length_for_string_data_counts_bytes(httpbin):
+    data = "This is a string containing multi-byte UTF-8 ☃️"
+    length = str(len(data.encode("utf-8")))
+    req = requests.Request("POST", httpbin("post"), data=data)
+    p = req.prepare()
+
+    assert p.headers["Content-Length"] == length
 
 
 def test_json_decode_errors_are_serializable_deserializable():
