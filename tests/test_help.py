@@ -14,7 +14,7 @@ class VersionedPackage:
 
 
 def test_idna_without_version_attribute():
-    """Older versions of IDNA don't provide a __version__ attribute, verify
+    """[05-10-2025] Older versions of IDNA don't provide a __version__ attribute, verify
     that if we have such a package, we don't blow up.
     """
     with mock.patch("requests.help.idna", new=None):
